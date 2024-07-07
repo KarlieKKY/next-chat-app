@@ -6,29 +6,55 @@ import { Button } from "./ui/button";
 
 const AudioStreaming = () => {
   const [isRecording, setIsRecording] = useState(false);
-  const socket = useRef<Socket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const localStreamRef = useRef<MediaStream>(null);
+  const mediaRecorderRef = useRef<MediaRecorder>(null);
 
   useEffect(() => {
     // Connect to the Socket.IO server
-    socket.current = io("http://localhost:3001", {
+    socketRef.current = io("http://localhost:5000", {
       path: "/api/socketio",
       withCredentials: true,
-      // transports: ["websocket", "polling"], // Ensure polling transport is included
     });
 
-    socket.current.on("connect", () => {
-      console.log("Connected to server");
-    });
+    if (isRecording) {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+        localStreamRef.current = stream;
+        mediaRecorderRef.current = new MediaRecorder(stream);
 
-    socket.current.on("disconnect", () => {
-      console.log("Disconnected from server");
-    });
+        mediaRecorderRef.current.ondataavailable = (event) => {
+          if (socketRef.current && event.data.size > 0) {
+            socketRef.current.emit("audio", event.data);
+          }
+        };
+        mediaRecorderRef.current.start(500); // Send data every 500ms
+      });
+    } else {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+        localStreamRef.current?.getTracks().forEach((track) => {
+          track.stop();
+        });
+      }
+    }
 
     return () => {
-      if (socket.current) {
-        socket.current.disconnect();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
+  }, [isRecording]);
+
+  useEffect(() => {
+    if (socketRef.current) {
+      socketRef.current.on("text", (text: string) => {
+        console.log("Received text:", text);
+        // Handle the received text (e.g., display it in the UI)
+      });
+    }
   }, []);
 
   function handleStartRecording() {
@@ -38,10 +64,15 @@ const AudioStreaming = () => {
   function handleStopRecording() {
     setIsRecording(false);
   }
+
   return (
     <div>
-      <Button onClick={handleStartRecording}>Start Recording</Button>
-      <Button onClick={handleStopRecording}>Stop Recording</Button>
+      <Button onClick={handleStartRecording} disabled={isRecording}>
+        Start Recording
+      </Button>
+      <Button onClick={handleStopRecording} disabled={!isRecording}>
+        Stop Recording
+      </Button>
     </div>
   );
 };

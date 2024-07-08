@@ -13,7 +13,6 @@ const AudioStreaming = () => {
   useEffect(() => {
     // Connect to the Socket.IO server
     socketRef.current = io("http://localhost:5000", {
-      path: "/api/socketio",
       withCredentials: true,
     });
 
@@ -27,7 +26,7 @@ const AudioStreaming = () => {
             socketRef.current.emit("audio", event.data);
           }
         };
-        mediaRecorderRef.current.start(500); // Send data every 500ms
+        mediaRecorderRef.current.start(5000); // Send data every 500ms
       });
     } else {
       if (mediaRecorderRef.current) {
